@@ -1,4 +1,4 @@
-package com.example.randomquote.ui.theme
+package com.kiprono.randomquote.ui.theme
 
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.material3.*

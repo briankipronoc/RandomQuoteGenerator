@@ -1,12 +1,13 @@
-package com.example.randomquote
+package com.kiprono.randomquote
 
 import android.content.Intent
 import androidx.compose.foundation.layout.*
 import androidx.compose.material3.*
-import androidx.compose.material3.icons.Icons
-import androidx.compose.material3.icons.filled.Favorite
-import androidx.compose.material3.icons.filled.Refresh
-import androidx.compose.material3.icons.filled.Share
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.ArrowBack
+import androidx.compose.material.icons.filled.Favorite
+import androidx.compose.material.icons.filled.Refresh
+import androidx.compose.material.icons.filled.Share
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -15,11 +16,17 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavController
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun RandomQuoteScreen(navController: NavController, viewModel: QuoteViewModel = viewModel()) {
     val quote by viewModel.quoteState.collectAsState()
     val isLoading by viewModel.isLoading.collectAsState()
     val context = LocalContext.current
+
+    // Request a random quote when the screen appears
+    LaunchedEffect(Unit) {
+        viewModel.getRandomQuote()
+    }
 
     Scaffold(
         topBar = {

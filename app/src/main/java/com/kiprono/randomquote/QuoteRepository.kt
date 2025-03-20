@@ -1,4 +1,4 @@
-package com.example.randomquote
+package com.kiprono.randomquote
 
 class QuoteRepository {
     private val api = RetrofitInstance.api

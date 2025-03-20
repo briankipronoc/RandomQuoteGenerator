@@ -1,4 +1,4 @@
-package com.kiprono.randomquotegenerator.ui.theme
+package com.kiprono.randomquote.ui.theme
 
 import androidx.compose.ui.graphics.Color
 

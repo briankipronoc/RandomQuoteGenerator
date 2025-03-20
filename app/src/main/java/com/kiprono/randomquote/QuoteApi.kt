@@ -1,4 +1,4 @@
-package com.example.randomquote
+package com.kiprono.randomquote
 
 import retrofit2.http.GET
 
