@@ -1,274 +1,155 @@
 package com.kiprono.randomquote
 
-import android.content.Context
 import android.content.Intent
 import android.os.Bundle
-import androidx.compose.runtime.LaunchedEffect
+import android.util.Log
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
-import androidx.compose.animation.AnimatedContent
-import androidx.compose.animation.core.tween
-import androidx.compose.animation.fadeIn
-import androidx.compose.animation.fadeOut
-import androidx.compose.animation.togetherWith
-import androidx.compose.foundation.background
-import androidx.compose.foundation.layout.*
-import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.FormatQuote
-import androidx.compose.material.icons.filled.Share
-import androidx.compose.material.icons.filled.Favorite
-import androidx.compose.material3.*
+import androidx.compose.foundation.isSystemInDarkTheme // Keep this for initialDarkTheme
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Surface
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
-import androidx.compose.ui.Alignment
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.text.font.FontFamily
-import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.style.TextAlign
-import androidx.compose.ui.tooling.preview.Preview
-import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
 import androidx.lifecycle.viewmodel.compose.viewModel
-import androidx.navigation.NavController
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
-import com.kiprono.randomquote.data.Quote
-import com.kiprono.randomquote.ui.theme.* // Import your theme components
+import com.kiprono.randomquote.data.AppDatabase
+import com.kiprono.randomquote.data.UserPreferencesRepository
+import com.kiprono.randomquote.ui.ProfileScreen
+import com.kiprono.randomquote.ui.theme.QuoteScreen // ADDED: Import your QuoteScreen
+import com.kiprono.randomquote.ui.theme.RandomQuoteTheme
 
-// Define navigation routes
-object Destinations {
-    const val QUOTE_SCREEN = "quote_screen"
-    const val FAVORITES_SCREEN = "favorites_screen"
-}
+// REMOVED: Unused imports related to the removed QuoteContent composable
+// import androidx.compose.foundation.ExperimentalFoundationApi
+// import androidx.compose.foundation.combinedClickable
+// import androidx.compose.foundation.layout.Arrangement
+// import androidx.compose.foundation.layout.Column
+// import androidx.compose.foundation.layout.Spacer
+// import androidx.compose.foundation.layout.height
+// import androidx.compose.foundation.layout.padding
+// import androidx.compose.foundation.layout.Row
+// import androidx.compose.foundation.layout.Box
+// import androidx.compose.material.icons.Icons
+// import androidx.compose.material.icons.filled.Info
+// import androidx.compose.material.icons.filled.Refresh
+// import androidx.compose.material.icons.filled.Share
+// import androidx.compose.material3.Card
+// import androidx.compose.material3.CircularProgressIndicator
+// import androidx.compose.material3.Icon
+// import androidx.compose.material3.IconButton
+// import androidx.compose.ui.graphics.Color
+// import androidx.compose.ui.platform.LocalHapticFeedback
+// import androidx.compose.ui.hapticfeedback.HapticFeedbackType
+// import androidx.compose.ui.text.font.FontWeight
+// import androidx.compose.ui.unit.dp
+// import java.util.Calendar
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContent {
-            // Updated to use RandomQuoteTheme (assuming this is the correct theme name in your Theme.kt)
-            RandomQuoteTheme {
+            val initialDarkTheme = isSystemInDarkTheme()
+            var darkTheme by remember { mutableStateOf(initialDarkTheme) }
+
+            RandomQuoteTheme(darkTheme = darkTheme) {
                 Surface(
                     modifier = Modifier.fillMaxSize(),
                     color = MaterialTheme.colorScheme.background
                 ) {
-                    // Start navigation from here
-                    AppNavigation()
+                    val context = LocalContext.current
+
+                    val database = AppDatabase.getDatabase(context)
+                    val favoriteQuoteDao = database.favoriteQuoteDao()
+                    val userPreferencesRepository = UserPreferencesRepository(context)
+
+                    val quoteViewModel: QuoteViewModel = viewModel(
+                        factory = QuoteViewModelFactory(
+                            favoriteQuoteDao = favoriteQuoteDao,
+                            userPreferencesRepository = userPreferencesRepository
+                        )
+                    )
+
+                    QuoteApp(
+                        viewModel = quoteViewModel,
+                        isDarkTheme = darkTheme,
+                        toggleTheme = { darkTheme = !darkTheme }
+                    )
                 }
             }
         }
     }
 }
 
-// Added AppNavigation Composable to manage screens
 @Composable
-fun AppNavigation(quoteViewModel: QuoteViewModel = viewModel()) {
+fun QuoteApp(
+    viewModel: QuoteViewModel,
+    isDarkTheme: Boolean,
+    toggleTheme: () -> Unit
+) {
     val navController = rememberNavController()
 
-    NavHost(
-        navController = navController,
-        startDestination = Destinations.QUOTE_SCREEN
-    ) {
-        // Route for the main Quote Screen
-        composable(Destinations.QUOTE_SCREEN) {
+    val userName by viewModel.userName.collectAsState()
+    val currentQuote by viewModel.quoteState.collectAsState()
+    val isLoading by viewModel.isLoading.collectAsState()
+    val errorMessage by viewModel.errorMessage.collectAsState()
+    val allFavorites by viewModel.allFavorites.collectAsState()
+
+    val isQuoteFavorited = remember(currentQuote, allFavorites) {
+        currentQuote != null && allFavorites.any { it.content == currentQuote?.content && it.author == currentQuote?.author }
+    }
+
+    NavHost(navController = navController, startDestination = "home") {
+        composable("home") {
+            // Replaced QuoteContent with QuoteScreen
             QuoteScreen(
-                quoteViewModel = quoteViewModel,
-                navController = navController // Pass NavController to enable navigation
+                quote = currentQuote,
+                isLoading = isLoading,
+                errorMessage = errorMessage,
+                onRefreshQuote = { viewModel.getRandomQuote() },
+                onFavoriteQuote = { viewModel.addCurrentQuoteToFavorites() },
+                onShareQuote = { viewModel.incrementSharedQuotes() }, // ViewModel still just increments a count
+                onNavigateToProfile = { navController.navigate("profile") },
+                userName = userName,
+                isDarkTheme = isDarkTheme,
+                toggleTheme = toggleTheme,
+                isQuoteFavorited = isQuoteFavorited
             )
         }
 
-        // Route for the Favorites Screen
-        composable(Destinations.FAVORITES_SCREEN) {
-            // Note: This requires FavoritesScreen.kt to be in place
-            FavoritesScreen(
+        composable("profile") {
+            ProfileScreen(
                 navController = navController,
-                viewModel = quoteViewModel
+                viewModel = viewModel
             )
         }
     }
 }
 
-@OptIn(ExperimentalMaterial3Api::class)
+// REMOVED THE ENTIRE QuoteContent COMPOSABLE FROM HERE
+/*
+@OptIn(ExperimentalFoundationApi::class)
 @Composable
-// Updated QuoteScreen to accept NavController
-fun QuoteScreen(
-    quoteViewModel: QuoteViewModel = viewModel(),
-    navController: NavController
+fun QuoteContent(
+    quote: com.kiprono.randomquote.data.Quote?,
+    isLoading: Boolean,
+    errorMessage: String?,
+    onRefreshQuote: () -> Unit,
+    onFavoriteQuote: () -> Unit,
+    onShareQuote: () -> Unit,
+    onNavigateToProfile: () -> Unit,
+    userName: String?,
+    isDarkTheme: Boolean,
+    toggleTheme: () -> Unit,
+    isQuoteFavorited: Boolean
 ) {
-    // ... (existing state variables)
-    val currentQuote by quoteViewModel.quoteState.collectAsState()
-    val isLoading by quoteViewModel.isLoading.collectAsState()
-    val errorMessage by quoteViewModel.errorMessage.collectAsState()
-    val context = LocalContext.current
-
-    // ... (LaunchedEffect)
-    LaunchedEffect(Unit) {
-        quoteViewModel.getRandomQuote()
-    }
-
-    Scaffold(
-        topBar = {
-            TopAppBar(
-                title = { Text("Random Quote Generator") },
-                // Added action to navigate to FavoritesScreen
-                actions = {
-                    IconButton(onClick = { navController.navigate(Destinations.FAVORITES_SCREEN) }) {
-                        Icon(imageVector = Icons.Default.Favorite, contentDescription = "Favorites")
-                    }
-                }
-            )
-        }
-    ) { padding ->
-        Column(
-            modifier = Modifier
-                .fillMaxSize()
-                .background(DarkGreyPrimary)
-                .padding(padding)
-                .padding(horizontal = 16.dp),
-            verticalArrangement = Arrangement.Center,
-            horizontalAlignment = Alignment.CenterHorizontally
-        ) {
-            // Quote Card
-            Card(
-                modifier = Modifier.fillMaxWidth(),
-                shape = RoundedCornerShape(16.dp),
-                colors = CardDefaults.cardColors(containerColor = DarkGreySurface),
-                elevation = CardDefaults.cardElevation(defaultElevation = 8.dp)
-            ) {
-                Column(
-                    modifier = Modifier.padding(24.dp),
-                    horizontalAlignment = Alignment.CenterHorizontally
-                ) {
-                    Icon(
-                        imageVector = Icons.Default.FormatQuote,
-                        contentDescription = "Quote Icon",
-                        tint = MutedText,
-                        modifier = Modifier.size(48.dp)
-                    )
-                    Spacer(modifier = Modifier.height(16.dp))
-
-                    AnimatedContent(
-                        targetState = currentQuote,
-                        transitionSpec = {
-                            fadeIn(animationSpec = tween(durationMillis = 300, delayMillis = 150)) togetherWith
-                                    fadeOut(animationSpec = tween(durationMillis = 150))
-                        }, label = "quote_animation"
-                    ) { targetQuote ->
-                        if (targetQuote != null) {
-                            Text(
-                                text = targetQuote.content,
-                                fontFamily = FontFamily.Serif,
-                                fontWeight = FontWeight.Normal,
-                                fontSize = 24.sp,
-                                lineHeight = 32.sp,
-                                textAlign = TextAlign.Center,
-                                color = LightText
-                            )
-                        } else {
-                            Text(
-                                text = "Tap 'New Quote' to get started!",
-                                fontFamily = FontFamily.Serif,
-                                fontWeight = FontWeight.Normal,
-                                fontSize = 24.sp,
-                                lineHeight = 32.sp,
-                                textAlign = TextAlign.Center,
-                                color = MutedText
-                            )
-                        }
-                    }
-
-                    Spacer(modifier = Modifier.height(16.dp))
-
-                    currentQuote?.author?.let { author ->
-                        Text(
-                            text = "- $author",
-                            fontFamily = FontFamily.SansSerif,
-                            fontWeight = FontWeight.Light,
-                            fontSize = 18.sp,
-                            textAlign = TextAlign.End,
-                            modifier = Modifier.fillMaxWidth(),
-                            color = MutedText
-                        )
-                    }
-                }
-            }
-
-            Spacer(modifier = Modifier.height(32.dp))
-
-            // Loading Indicator and Buttons
-            if (isLoading) {
-                CircularProgressIndicator(color = AccentGreen)
-            } else {
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceEvenly,
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    // Share Button
-                    Button(
-                        onClick = {
-                            currentQuote?.let { quote ->
-                                shareQuote(context, quote.content, quote.author)
-                            }
-                        },
-                        enabled = currentQuote != null,
-                        colors = ButtonDefaults.buttonColors(containerColor = AccentGreen),
-                        shape = RoundedCornerShape(50)
-                    ) {
-                        Icon(imageVector = Icons.Default.Share, contentDescription = "Share Quote")
-                        Spacer(Modifier.width(8.dp))
-                        Text("Share")
-                    }
-
-                    // New Quote Button
-                    Button(
-                        onClick = { quoteViewModel.getRandomQuote() },
-                        colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary),
-                        shape = RoundedCornerShape(50)
-                    ) {
-                        Text("New Quote")
-                    }
-                }
-            }
-
-            // Error Message
-            errorMessage?.let { message ->
-                Spacer(modifier = Modifier.height(24.dp))
-                Text(
-                    text = message,
-                    color = ErrorRed,
-                    fontSize = 16.sp,
-                    textAlign = TextAlign.Center,
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .background(ErrorRed.copy(alpha = 0.1f), RoundedCornerShape(8.dp))
-                        .padding(12.dp)
-                )
-            }
-        }
-    }
+    // ... (rest of QuoteContent logic, now moved to QuoteScreen)
 }
-
-// ... (shareQuote function remains the same)
-fun shareQuote(context: Context, quoteContent: String, quoteAuthor: String) {
-    val shareIntent = Intent().apply {
-        action = Intent.ACTION_SEND
-        putExtra(Intent.EXTRA_TEXT, "\"$quoteContent\" - $quoteAuthor")
-        type = "text/plain"
-    }
-    context.startActivity(Intent.createChooser(shareIntent, "Share quote via"))
-}
-
-// Updated Preview to reflect navigation (since it needs a NavController for the preview)
-@Preview(showBackground = true)
-@Composable
-fun DefaultPreview() {
-    RandomQuoteTheme {
-        // Provide a dummy NavController for the preview
-        QuoteScreen(navController = rememberNavController())
-    }
-}
+*/
