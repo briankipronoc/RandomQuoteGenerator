@@ -6,9 +6,9 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
-// Import AutoMirrored for ArrowBack
-import androidx.compose.material.icons.automirrored.filled.ArrowBack
-import androidx.compose.material.icons.filled.*
+// Removed AutoMirrored import as ArrowBack is no longer used for navigationIcon
+// import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.filled.* // This import covers Home, LightMode, DarkMode, Search, Delete, Autorenew, Favorite, Share
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -23,11 +23,16 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavController
 import com.kiprono.randomquote.QuoteViewModel
 import com.kiprono.randomquote.data.Quote
-import com.kiprono.randomquote.ui.theme.AppTypography
+import com.kiprono.randomquote.ui.theme.AppTypography // Make sure this import is correct
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun ProfileScreen(navController: NavController, viewModel: QuoteViewModel) {
+fun ProfileScreen(
+    navController: NavController,
+    viewModel: QuoteViewModel,
+    isDarkTheme: Boolean,   // NEW PARAMETER: to control theme icon
+    toggleTheme: () -> Unit // NEW PARAMETER: to toggle theme
+) {
     val userName by viewModel.userName.collectAsState()
     val quotesReadCount by viewModel.quotesReadCount.collectAsState()
     val quotesLikedCount by viewModel.quotesLikedCount.collectAsState()
@@ -40,11 +45,31 @@ fun ProfileScreen(navController: NavController, viewModel: QuoteViewModel) {
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text("Your Profile", style = AppTypography.titleLarge) },
-                navigationIcon = {
-                    IconButton(onClick = { navController.popBackStack() }) {
-                        // FIX: Use Icons.AutoMirrored.Filled.ArrowBack
-                        Icon(Icons.AutoMirrored.Filled.ArrowBack, "Back")
+                title = {
+                    Text(
+                        text = "Your Profile",
+                        style = AppTypography.titleLarge,
+                        modifier = Modifier.fillMaxWidth(), // Ensure title is centered
+                        textAlign = androidx.compose.ui.text.style.TextAlign.Center
+                    )
+                },
+                // REMOVED navigationIcon entirely
+                actions = { // ADDED actions block to match QuoteScreen
+                    // Dark/Light Mode Icon
+                    IconButton(onClick = toggleTheme) {
+                        Icon(
+                            imageVector = if (isDarkTheme) Icons.Default.LightMode else Icons.Default.DarkMode,
+                            contentDescription = "Toggle theme",
+                            tint = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                    // Home Icon (to navigate back to main Quote Screen)
+                    IconButton(onClick = { navController.popBackStack() }) { // Assuming popBackStack goes to QuoteScreen
+                        Icon(
+                            imageVector = Icons.Filled.Home, // Using the Home icon
+                            contentDescription = "Home",
+                            tint = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
                     }
                 },
                 colors = TopAppBarDefaults.topAppBarColors(

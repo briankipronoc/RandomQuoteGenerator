@@ -7,7 +7,7 @@ import androidx.compose.animation.core.spring
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
-import androidx.compose.material.ripple.rememberRipple // CORRECT IMPORT for rememberRipple
+import androidx.compose.material.ripple.rememberRipple
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.*
 import androidx.compose.material.icons.Icons
@@ -36,7 +36,9 @@ import androidx.compose.ui.input.pointer.pointerInput
 import com.kiprono.randomquote.data.Quote
 import kotlinx.coroutines.launch
 import java.util.Calendar
-import com.kiprono.randomquote.ui.theme.AppTypography
+
+// Define the TAG for logging in this file
+private const val TAG = "QuoteScreen"
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -89,18 +91,17 @@ fun QuoteScreen(
                     containerColor = MaterialTheme.colorScheme.surface
                 )
             )
-        },
-        // REMOVE FloatingActionButton from Scaffold's fab parameter
-        // floatingActionButton = { /* ... */ },
-        // floatingActionButtonPosition = FabPosition.End // REMOVE this line
+        }
+        // REMOVED: floatingActionButton and floatingActionButtonPosition from Scaffold
+        // The refresh button is now placed directly within the main Column
     ) { paddingValues ->
         Column(
             modifier = Modifier
-                .fillMaxSize() // Use fillMaxSize to ensure it takes full height
-                .padding(paddingValues)
+                .fillMaxSize() // Ensures the Column fills the whole screen
+                .padding(paddingValues) // Apply Scaffold's padding to respect system bars
                 .padding(horizontal = 16.dp, vertical = 24.dp),
             horizontalAlignment = Alignment.CenterHorizontally,
-            verticalArrangement = Arrangement.SpaceBetween // Distribute space between elements
+            verticalArrangement = Arrangement.SpaceBetween // Distributes space evenly
         ) {
             Column(
                 horizontalAlignment = Alignment.CenterHorizontally,
@@ -124,7 +125,8 @@ fun QuoteScreen(
                 }
             }
 
-            Spacer(Modifier.weight(1f)) // Pushes content up
+            Spacer(Modifier.weight(1f)) // Pushes content above it towards the top, and content below towards the bottom
+
             Card(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -133,20 +135,22 @@ fun QuoteScreen(
                     .clickable(
                         interactionSource = interactionSource,
                         indication = rememberRipple(),
-                        onClick = { /* Tap handled by pointerInput */ }
+                        onClick = { // onClick here is important for the ripple effect
+                            Log.d(TAG, "Single-tapped the quote card (for ripple).")
+                        }
                     )
-                    .pointerInput(Unit) {
+                    .pointerInput(Unit) { // Actual tap gesture handling
                         detectTapGestures(
                             onTap = {
-                                Log.d("QuoteScreen", "Single-tapped the quote card.")
+                                Log.d(TAG, "Single-tapped the quote card.")
                             },
                             onDoubleTap = {
                                 onFavoriteQuote()
-                                Log.d("QuoteScreen", "Double-tapped to favorite/unfavorite")
+                                Log.d(TAG, "Double-tapped to favorite/unfavorite")
                             },
                             onLongPress = {
                                 haptic.performHapticFeedback(HapticFeedbackType.LongPress)
-                                Log.d("QuoteScreen", "Long-pressed for haptic feedback")
+                                Log.d(TAG, "Long-pressed for haptic feedback")
                             }
                         )
                     },
@@ -207,18 +211,18 @@ fun QuoteScreen(
                 }
             }
 
-            // NEW: Row for Heart and Share buttons
+            // NEW: Row for Favorite and Share buttons, directly below the card
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(top = 24.dp), // Add some padding from the card
+                    .padding(top = 24.dp), // Space from the card
                 horizontalArrangement = Arrangement.Center, // Center the icons
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 // Favorite Button
                 IconButton(onClick = {
                     onFavoriteQuote()
-                    Log.d("QuoteScreen", "Favorite button clicked.")
+                    Log.d(TAG, "Favorite button clicked.")
                 }) {
                     Icon(
                         imageVector = if (isQuoteFavorited) Icons.Filled.Favorite else Icons.Filled.FavoriteBorder,
@@ -242,8 +246,8 @@ fun QuoteScreen(
                             }
                             context.startActivity(Intent.createChooser(shareIntent, "Share this quote via"))
                             onShareQuote()
-                            Log.d("QuoteScreen", "Share button clicked.")
-                        } ?: Log.w("QuoteScreen", "Share button clicked but no quote available.")
+                            Log.d(TAG, "Share button clicked.")
+                        } ?: Log.w(TAG, "Share button clicked but no quote available.")
                     }
                 ) {
                     Icon(
@@ -255,9 +259,9 @@ fun QuoteScreen(
                 }
             }
 
-            Spacer(Modifier.weight(1f)) // Pushes content down, creating space for the Refresh FAB
+            Spacer(Modifier.weight(1f)) // Pushes elements above it towards the middle/top, and the FAB to the bottom
 
-            // REFRESH BUTTON - Now in the center bottom
+            // REFRESH BUTTON - Now centered at the very bottom
             FloatingActionButton(
                 onClick = onRefreshQuote,
                 containerColor = MaterialTheme.colorScheme.primary,
@@ -277,7 +281,6 @@ fun QuoteScreen(
     }
 }
 
-// ... (AnimatedInteractionIcon and getGreeting remain unchanged)
 @Composable
 fun AnimatedInteractionIcon(
     icon: androidx.compose.ui.graphics.vector.ImageVector,

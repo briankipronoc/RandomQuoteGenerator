@@ -1,31 +1,31 @@
-// app/src/main/java/com/kiprono/randomquote/data/RetrofitInstance.kt
-
 package com.kiprono.randomquote.data
 
+import com.kiprono.randomquote.network.QuoteApiService // Correct import for QuoteApiService
 import okhttp3.OkHttpClient
 import okhttp3.logging.HttpLoggingInterceptor
 import retrofit2.Retrofit
 import retrofit2.converter.gson.GsonConverterFactory
-import java.util.concurrent.TimeUnit // For readTimeout and connectTimeout
+import java.util.concurrent.TimeUnit
 
 object RetrofitClient {
 
-    private const val BASE_URL = "https://api.quotable.io/" // Ensure this is correct
+    // CHANGE THIS BASE_URL TO ZENQUOTES
+    private const val BASE_URL = "https://zenquotes.io/" // Updated base URL for ZenQuotes
 
     private val loggingInterceptor = HttpLoggingInterceptor().apply {
-        level = HttpLoggingInterceptor.Level.BODY // This logs headers and body for requests and responses
+        level = HttpLoggingInterceptor.Level.BODY
     }
 
     private val okHttpClient = OkHttpClient.Builder()
-        .addInterceptor(loggingInterceptor) // Add the logging interceptor
-        .connectTimeout(30, TimeUnit.SECONDS) // Set connection timeout
-        .readTimeout(30, TimeUnit.SECONDS)    // Set read timeout
+        .addInterceptor(loggingInterceptor)
+        .connectTimeout(30, TimeUnit.SECONDS)
+        .readTimeout(30, TimeUnit.SECONDS)
         .build()
 
     val quoteApiService: QuoteApiService by lazy {
         Retrofit.Builder()
             .baseUrl(BASE_URL)
-            .client(okHttpClient) // Attach the configured OkHttpClient
+            .client(okHttpClient)
             .addConverterFactory(GsonConverterFactory.create())
             .build()
             .create(QuoteApiService::class.java)
