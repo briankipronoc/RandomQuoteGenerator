@@ -5,42 +5,37 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.text.KeyboardOptions
-import androidx.compose.material.icons.Icons
-// Removed AutoMirrored import as ArrowBack is no longer used for navigationIcon
-// import androidx.compose.material.icons.automirrored.filled.ArrowBack
-import androidx.compose.material.icons.filled.* // This import covers Home, LightMode, DarkMode, Search, Delete, Autorenew, Favorite, Share
+import androidx.compose.material.icons.Icons // Keep this for the 'Icons' object itself
+import androidx.compose.material.icons.filled.* // Import ALL filled icons with a wildcard
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.text.font.FontStyle
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.input.KeyboardCapitalization
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
-import androidx.lifecycle.viewmodel.compose.viewModel
+import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.navigation.NavController
-import com.kiprono.randomquote.QuoteViewModel
-import com.kiprono.randomquote.data.Quote
-import com.kiprono.randomquote.ui.theme.AppTypography // Make sure this import is correct
+
+import com.kiprono.randomquote.data.Achievement // Import the Achievement data class
+import com.kiprono.randomquote.ui.viewmodel.QuoteViewModel
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun ProfileScreen(
     navController: NavController,
-    viewModel: QuoteViewModel,
-    isDarkTheme: Boolean,   // NEW PARAMETER: to control theme icon
-    toggleTheme: () -> Unit // NEW PARAMETER: to toggle theme
+    viewModel: QuoteViewModel = hiltViewModel(),
+    isDarkTheme: Boolean,
+    toggleTheme: () -> Unit
 ) {
     val userName by viewModel.userName.collectAsState()
     val quotesReadCount by viewModel.quotesReadCount.collectAsState()
-    val quotesLikedCount by viewModel.quotesLikedCount.collectAsState()
+    val favoriteQuotesCount by viewModel.favoriteQuotesCount.collectAsState()
     val quotesSharedCount by viewModel.quotesSharedCount.collectAsState()
-    val allFavorites by viewModel.allFavorites.collectAsState()
 
-    var nameInput by remember(userName) { mutableStateOf(userName ?: "") }
-    var searchQuery by remember { mutableStateOf("") }
+    var nameInput by remember(userName) { mutableStateOf(userName) }
 
     Scaffold(
         topBar = {
@@ -48,27 +43,22 @@ fun ProfileScreen(
                 title = {
                     Text(
                         text = "Your Profile",
-                        style = AppTypography.titleLarge,
-                        modifier = Modifier.fillMaxWidth(), // Ensure title is centered
-                        textAlign = androidx.compose.ui.text.style.TextAlign.Center
+                        style = MaterialTheme.typography.titleLarge,
+                        modifier = Modifier.fillMaxWidth(),
+                        textAlign = TextAlign.Center
                     )
                 },
-                // REMOVED navigationIcon entirely
-                actions = { // ADDED actions block to match QuoteScreen
-                    // Dark/Light Mode Icon
+                actions = {
                     IconButton(onClick = toggleTheme) {
                         Icon(
                             imageVector = if (isDarkTheme) Icons.Default.LightMode else Icons.Default.DarkMode,
-                            contentDescription = "Toggle theme",
-                            tint = MaterialTheme.colorScheme.onSurfaceVariant
+                            contentDescription = "Toggle theme"
                         )
                     }
-                    // Home Icon (to navigate back to main Quote Screen)
-                    IconButton(onClick = { navController.popBackStack() }) { // Assuming popBackStack goes to QuoteScreen
+                    IconButton(onClick = { navController.popBackStack() }) {
                         Icon(
-                            imageVector = Icons.Filled.Home, // Using the Home icon
-                            contentDescription = "Home",
-                            tint = MaterialTheme.colorScheme.onSurfaceVariant
+                            imageVector = Icons.Filled.Home,
+                            contentDescription = "Home"
                         )
                     }
                 },
@@ -85,34 +75,30 @@ fun ProfileScreen(
                 .padding(16.dp),
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
-            // Profile Header
             Spacer(Modifier.height(16.dp))
             Icon(
                 imageVector = Icons.Filled.AccountCircle,
                 contentDescription = "Profile Picture",
-                modifier = Modifier
-                    .size(96.dp)
-                    .clip(CircleShape),
+                modifier = Modifier.size(96.dp).clip(CircleShape),
                 tint = MaterialTheme.colorScheme.primary
             )
             Spacer(Modifier.height(16.dp))
             Text(
-                text = userName?.let { "Hello, $it!" } ?: "Hello there!",
-                style = AppTypography.headlineLarge,
+                text = "Hello, $userName!",
+                style = MaterialTheme.typography.headlineLarge,
                 color = MaterialTheme.colorScheme.onSurface
             )
             Spacer(Modifier.height(8.dp))
 
-            // Name Input Field
             OutlinedTextField(
                 value = nameInput,
                 onValueChange = { nameInput = it },
-                label = { Text("Your Name", style = AppTypography.bodyMedium) },
+                label = { Text("Your Name", style = MaterialTheme.typography.bodyMedium) },
                 singleLine = true,
                 keyboardOptions = KeyboardOptions(capitalization = KeyboardCapitalization.Words),
                 modifier = Modifier.fillMaxWidth(),
                 trailingIcon = {
-                    if (nameInput.isNotBlank() && nameInput != userName.orEmpty()) {
+                    if (nameInput.isNotBlank() && nameInput != userName) {
                         IconButton(onClick = { viewModel.saveUserName(nameInput) }) {
                             Icon(Icons.Filled.Save, "Save Name", tint = MaterialTheme.colorScheme.primary)
                         }
@@ -121,10 +107,9 @@ fun ProfileScreen(
             )
             Spacer(Modifier.height(24.dp))
 
-            // Stats Section
             Text(
                 text = "Your Quote Journey",
-                style = AppTypography.headlineSmall,
+                style = MaterialTheme.typography.headlineSmall,
                 modifier = Modifier.align(Alignment.Start)
             )
             Spacer(Modifier.height(16.dp))
@@ -134,59 +119,78 @@ fun ProfileScreen(
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 StatItem(icon = Icons.Filled.Autorenew, label = "Read", count = quotesReadCount)
-                StatItem(icon = Icons.Filled.Favorite, label = "Liked", count = quotesLikedCount)
+                StatItem(icon = Icons.Filled.Favorite, label = "Liked", count = favoriteQuotesCount)
                 StatItem(icon = Icons.Filled.Share, label = "Shared", count = quotesSharedCount)
             }
 
             Spacer(Modifier.height(32.dp))
 
-            // Favorite Quotes Section
             Text(
-                text = "Your Favorite Quotes",
-                style = AppTypography.headlineSmall,
-                modifier = Modifier.align(Alignment.Start)
+                text = "Achievements",
+                style = MaterialTheme.typography.headlineSmall,
+                modifier = Modifier.padding(bottom = 8.dp)
             )
-            Spacer(Modifier.height(16.dp))
-
-            // Search Bar for Favorites
-            OutlinedTextField(
-                value = searchQuery,
-                onValueChange = { searchQuery = it },
-                label = { Text("Search Favorites", style = AppTypography.bodyMedium) },
-                singleLine = true,
-                leadingIcon = { Icon(Icons.Filled.Search, contentDescription = "Search") },
-                modifier = Modifier.fillMaxWidth()
-            )
-            Spacer(Modifier.height(16.dp))
-
-            val filteredFavorites = remember(allFavorites, searchQuery) {
-                if (searchQuery.isBlank()) {
-                    allFavorites
+            val achievements by viewModel.achievements.collectAsState()
+            LazyColumn(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .heightIn(max = 200.dp),
+                verticalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                if (achievements.isEmpty()) {
+                    item {
+                        Text(
+                            "No achievements yet. Keep going!",
+                            style = MaterialTheme.typography.bodyMedium
+                        )
+                    }
                 } else {
-                    allFavorites.filter {
-                        // Safely call .contains() on potentially nullable content and author
-                        it.content?.contains(searchQuery, ignoreCase = true) ?: false ||
-                                it.author?.contains(searchQuery, ignoreCase = true) ?: false
+                    items(achievements) { achievement ->
+                        Card(
+                            modifier = Modifier.fillMaxWidth(),
+                            colors = CardDefaults.cardColors(
+                                containerColor = if (achievement.unlocked) MaterialTheme.colorScheme.secondaryContainer else MaterialTheme.colorScheme.surfaceVariant
+                            ),
+                            elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
+                        ) {
+                            Column(modifier = Modifier.padding(12.dp)) {
+                                Text(
+                                    achievement.title,
+                                    style = MaterialTheme.typography.titleMedium
+                                )
+                                Text(
+                                    achievement.description,
+                                    style = MaterialTheme.typography.bodySmall
+                                )
+                                if (achievement.unlocked) {
+                                    Text(
+                                        "Unlocked!",
+                                        style = MaterialTheme.typography.labelSmall,
+                                        color = MaterialTheme.colorScheme.primary
+                                    )
+                                } else {
+                                    Text(
+                                        "Progress: ${viewModel.getAchievementProgress(achievement)}/${achievement.threshold}",
+                                        style = MaterialTheme.typography.labelSmall
+                                    )
+                                }
+                            }
+                        }
                     }
                 }
             }
 
-            if (filteredFavorites.isEmpty()) {
-                Text(
-                    text = if (searchQuery.isBlank()) "No favorite quotes yet. Like some quotes on the main screen!" else "No matching favorites found.",
-                    style = AppTypography.bodyMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    modifier = Modifier.padding(16.dp),
-                    textAlign = androidx.compose.ui.text.style.TextAlign.Center
-                )
-            } else {
-                LazyColumn(modifier = Modifier.fillMaxWidth()) {
-                    items(filteredFavorites) { quote ->
-                        FavoriteQuoteItem(quote = quote) {
-                            viewModel.removeFavorite(quote)
-                        }
-                        Spacer(Modifier.height(8.dp))
-                    }
+            Spacer(modifier = Modifier.height(32.dp))
+
+            // THIS IS THE NAVIGATION BUTTON TO FAVORITES SCREEN
+            Button(
+                onClick = { navController.navigate("favorite_quotes_screen") }, // Corrected route string
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Icon(Icons.Default.Favorite, contentDescription = "Favorite Quotes")
+                    Spacer(Modifier.width(8.dp))
+                    Text("View Favorite Quotes ($favoriteQuotesCount)")
                 }
             }
         }
@@ -198,46 +202,7 @@ fun StatItem(icon: ImageVector, label: String, count: Int) {
     Column(horizontalAlignment = Alignment.CenterHorizontally) {
         Icon(imageVector = icon, contentDescription = label, modifier = Modifier.size(32.dp), tint = MaterialTheme.colorScheme.primary)
         Spacer(Modifier.height(4.dp))
-        Text(text = label, style = AppTypography.bodyMedium)
-        Text(text = count.toString(), style = AppTypography.headlineSmall)
-    }
-}
-
-@Composable
-fun FavoriteQuoteItem(quote: Quote, onRemove: () -> Unit) {
-    Card(
-        modifier = Modifier
-            .fillMaxWidth()
-            .wrapContentHeight(),
-        elevation = CardDefaults.cardElevation(defaultElevation = 4.dp),
-        colors = CardDefaults.cardColors(
-            containerColor = MaterialTheme.colorScheme.surfaceContainerHigh.copy(alpha = 0.9f) // Applying glass-like effect
-        ),
-        shape = MaterialTheme.shapes.medium // Consistent shape
-    ) {
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(16.dp),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.SpaceBetween
-        ) {
-            Column(modifier = Modifier.weight(1f)) {
-                Text(
-                    text = "\"${quote.content ?: "No content"}\"", // Safely access content
-                    style = AppTypography.bodyLarge,
-                    color = MaterialTheme.colorScheme.onSurface
-                )
-                Text(
-                    text = "- ${quote.author ?: "Unknown"}", // Safely access author
-                    style = AppTypography.bodySmall.copy(fontStyle = FontStyle.Italic),
-                    modifier = Modifier.padding(top = 4.dp),
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
-            }
-            IconButton(onClick = onRemove) {
-                Icon(Icons.Filled.Delete, "Remove from favorites", tint = MaterialTheme.colorScheme.error)
-            }
-        }
+        Text(text = label, style = MaterialTheme.typography.bodyMedium)
+        Text(text = count.toString(), style = MaterialTheme.typography.headlineSmall)
     }
 }

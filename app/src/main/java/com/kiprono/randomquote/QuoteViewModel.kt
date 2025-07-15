@@ -1,29 +1,33 @@
-package com.kiprono.randomquote
+package com.kiprono.randomquote.ui.viewmodel
 
 import android.util.Log
 import androidx.lifecycle.ViewModel
-import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
+import com.kiprono.randomquote.data.Achievement
+import com.kiprono.randomquote.data.AchievementDao
 import com.kiprono.randomquote.data.FavoriteQuoteDao
 import com.kiprono.randomquote.data.Quote
 import com.kiprono.randomquote.data.UserPreferencesRepository
 import com.kiprono.randomquote.network.QuoteRepository
+import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
-import kotlinx.coroutines.flow.first // <-- KEEP this if you use .first() method below, otherwise remove
+import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.stateIn // Import stateIn
+import kotlinx.coroutines.flow.SharingStarted // Import SharingStarted
 import kotlinx.coroutines.launch
+import javax.inject.Inject
 
-// Define the TAG for logging
-private const val TAG = "QuoteViewModel"
-
-class QuoteViewModel(
-    private val quoteRepository: QuoteRepository,
+@HiltViewModel
+class QuoteViewModel @Inject constructor(
+    private val quoteRepository: QuoteRepository, // <--- ADDED COMMA HERE
     private val favoriteQuoteDao: FavoriteQuoteDao,
-    private val userPreferencesRepository: UserPreferencesRepository
+    private val userPreferencesRepository: UserPreferencesRepository,
+    private val achievementDao: AchievementDao
 ) : ViewModel() {
-
-    // ... (rest of your ViewModel code remains the same)
 
     private val _quoteState = MutableStateFlow<Quote?>(null)
     val quoteState: StateFlow<Quote?> = _quoteState.asStateFlow()
@@ -34,185 +38,204 @@ class QuoteViewModel(
     private val _errorMessage = MutableStateFlow<String?>(null)
     val errorMessage: StateFlow<String?> = _errorMessage.asStateFlow()
 
-    private val _userName = MutableStateFlow<String?>(null)
-    val userName: StateFlow<String?> = _userName.asStateFlow()
+    // User Preferences (now exposed as StateFlows using stateIn)
+    val userName: StateFlow<String> = userPreferencesRepository.userName
+        .stateIn(
+            scope = viewModelScope,
+            started = SharingStarted.WhileSubscribed(5000), // Keep active as long as there are collectors
+            initialValue = "Guest" // Initial value before DataStore emits
+        )
 
-    private val _quotesReadCount = MutableStateFlow(0)
-    val quotesReadCount: StateFlow<Int> = _quotesReadCount.asStateFlow()
+    val quotesReadCount: StateFlow<Int> = userPreferencesRepository.quotesReadCount
+        .stateIn(
+            scope = viewModelScope,
+            started = SharingStarted.WhileSubscribed(5000),
+            initialValue = 0
+        )
 
-    private val _quotesLikedCount = MutableStateFlow(0)
-    val quotesLikedCount: StateFlow<Int> = _quotesLikedCount.asStateFlow()
+    val favoriteQuotesCount: StateFlow<Int> = userPreferencesRepository.favoriteQuotesCount
+        .stateIn(
+            scope = viewModelScope,
+            started = SharingStarted.WhileSubscribed(5000),
+            initialValue = 0
+        )
 
-    private val _quotesSharedCount = MutableStateFlow(0)
-    val quotesSharedCount: StateFlow<Int> = _quotesSharedCount.asStateFlow()
+    val quotesSharedCount: StateFlow<Int> = userPreferencesRepository.quotesSharedCount
+        .stateIn(
+            scope = viewModelScope,
+            started = SharingStarted.WhileSubscribed(5000),
+            initialValue = 0
+        )
 
-    private val _allFavorites = MutableStateFlow<List<Quote>>(emptyList())
-    val allFavorites: StateFlow<List<Quote>> = _allFavorites.asStateFlow()
+    // Favorite Quotes
+    private val _searchQuery = MutableStateFlow("")
+    val searchQuery: StateFlow<String> = _searchQuery.asStateFlow()
 
-    // Add this flow for dark theme preference
-    val isDarkTheme = userPreferencesRepository.isDarkTheme
+    val allFavorites = favoriteQuoteDao.getAllFavorites()
 
-    // Initialize with a random quote and user preferences
-    init {
-        Log.d(TAG, "ViewModel initialized. Attempting to load initial data.")
-        loadUserPreferences()
-        observeFavorites()
-        getRandomQuote() // Initial quote fetch
+    val filteredFavorites = combine(
+        allFavorites,
+        _searchQuery
+    ) { favorites, query ->
+        if (query.isBlank()) {
+            favorites
+        } else {
+            favorites.filter {
+                it.text.contains(query, ignoreCase = true) ||
+                        it.author.contains(query, ignoreCase = true)
+            }
+        }
     }
 
-    private fun loadUserPreferences() {
+    // Achievements
+    private val _achievements = MutableStateFlow<List<Achievement>>(emptyList())
+    val achievements: StateFlow<List<Achievement>> = _achievements.asStateFlow()
+
+    init {
+        Log.d("QuoteViewModel", "ViewModel initialized by Hilt.")
         viewModelScope.launch {
-            Log.d(TAG, "Loading user preferences...")
-            userPreferencesRepository.userName.collect { name ->
-                _userName.value = name
-                Log.d(TAG, "Loaded userName: $name")
+            initializeAchievements()
+            achievementDao.getAllAchievements().collect { dbAchievements ->
+                _achievements.value = dbAchievements
             }
-            userPreferencesRepository.quotesReadCount.collect { count ->
-                _quotesReadCount.value = count
-                Log.d(TAG, "Loaded quotesReadCount: $count")
-            }
-            userPreferencesRepository.quotesLikedCount.collect { count ->
-                _quotesLikedCount.value = count
-                Log.d(TAG, "Loaded quotesLikedCount: $count")
-            }
-            userPreferencesRepository.quotesSharedCount.collect { count ->
-                _quotesSharedCount.value = count
-                Log.d(TAG, "Loaded quotesSharedCount: $count")
-            }
-            // Add collection for dark theme if you display it in ViewModel
-            // userPreferencesRepository.isDarkTheme.collect { isDark ->
-            //     // Handle dark theme state here if ViewModel needs to observe it directly
-            // }
+        }
+        getRandomQuote()
+    }
+
+    // Achievement Initialization
+    private suspend fun initializeAchievements() {
+        val existingAchievements = achievementDao.getAllAchievements().first()
+        if (existingAchievements.isEmpty()) {
+            val defaultAchievements = listOf(
+                Achievement(title = "First Read", description = "Read 1 quote", threshold = 1),
+                Achievement(title = "Quote Enthusiast", description = "Read 10 quotes", threshold = 10),
+                Achievement(title = "Quote Master", description = "Read 50 quotes", threshold = 50),
+                Achievement(title = "First Favorite", description = "Add 1 quote to favorites", threshold = 1),
+                Achievement(title = "Collector", description = "Add 5 quotes to favorites", threshold = 5),
+                Achievement(title = "Sharer", description = "Share 1 quote", threshold = 1),
+                Achievement(title = "Social Butterfly", description = "Share 5 quotes", threshold = 5)
+            )
+            defaultAchievements.forEach { achievementDao.insertAchievement(it) }
         }
     }
 
     fun getRandomQuote() {
         viewModelScope.launch {
             _isLoading.value = true
-            _errorMessage.value = null // Clear previous errors
-            Log.d(TAG, "Attempting to fetch random quote...")
+            _errorMessage.value = null
             try {
-                val quote = quoteRepository.fetchRandomQuote() // This will now return Quote?
-                if (quote != null) {
-                    _quoteState.value = quote
-                    incrementQuotesRead() // Increment read count on successful fetch
-                    Log.d(TAG, "Successfully fetched quote: \"${quote.content}\" by ${quote.author}")
-                } else {
-                    _quoteState.value = null
-                    _errorMessage.value = "No quote found or API returned empty response."
-                    Log.w(TAG, "fetchRandomQuote returned null or empty.")
-                }
+                val quote = quoteRepository.fetchRandomQuote()
+                _quoteState.value = quote
+                userPreferencesRepository.incrementQuotesRead()
+                updateAchievementProgress(AchievementType.READ, 1)
             } catch (e: Exception) {
-                _errorMessage.value = "Failed to load quote: ${e.localizedMessage ?: "Unknown error"}"
-                _quoteState.value = null
-                Log.e(TAG, "Error fetching quote: ${e.message}", e)
+                _errorMessage.value = "Failed to fetch quote: ${e.message}"
+                Log.e("QuoteViewModel", "Error fetching quote", e)
             } finally {
                 _isLoading.value = false
-                Log.d(TAG, "Finished quote fetch attempt. isLoading: ${_isLoading.value}")
             }
         }
     }
 
-    private fun incrementQuotesRead() {
-        viewModelScope.launch {
-            // Use .first() to get the current value of the Flow
-            val currentCount = userPreferencesRepository.quotesReadCount.first()
-            userPreferencesRepository.saveQuotesReadCount(currentCount + 1)
-            Log.d(TAG, "Quotes Read Count incremented to ${currentCount + 1}")
-        }
-    }
-
-    fun addCurrentQuoteToFavorites() {
+    fun addOrRemoveFavorite() {
         viewModelScope.launch {
             _quoteState.value?.let { currentQuote ->
-                val existingFavorite = favoriteQuoteDao.getFavoriteByContentAndAuthor(currentQuote.content, currentQuote.author)
-                if (existingFavorite == null) {
-                    // Make sure your FavoriteQuoteDao.insert takes a Quote object directly
-                    // or convert Quote to FavoriteQuote if needed.
-                    favoriteQuoteDao.insert(currentQuote) // Assuming Quote is also your FavoriteQuote Entity
-                    incrementQuotesLiked() // Increment liked count
-                    Log.d(TAG, "Added to favorites: ${currentQuote.content}")
+                val isCurrentlyFavorited = favoriteQuoteDao.isQuoteFavorited(currentQuote.text, currentQuote.author)
+
+                if (isCurrentlyFavorited) {
+                    favoriteQuoteDao.deleteFavorite(currentQuote)
                 } else {
-                    favoriteQuoteDao.delete(existingFavorite)
-                    decrementQuotesLiked() // Decrement liked count if un-favoriting
-                    Log.d(TAG, "Removed from favorites: ${currentQuote.content}")
+                    favoriteQuoteDao.addFavorite(currentQuote)
+                    updateAchievementProgress(AchievementType.FAVORITE, 1)
                 }
-            } ?: Log.w(TAG, "Attempted to favorite null quote.")
+                userPreferencesRepository.updateFavoriteQuotesCount(favoriteQuoteDao.getAllFavorites().first().size)
+            }
         }
     }
 
     fun removeFavorite(quote: Quote) {
         viewModelScope.launch {
-            favoriteQuoteDao.delete(quote) // Assuming Quote is also your FavoriteQuote Entity
-            decrementQuotesLiked()
-            Log.d(TAG, "Removed favorite via profile screen: ${quote.content}")
-        }
-    }
-
-    private fun incrementQuotesLiked() {
-        viewModelScope.launch {
-            val currentCount = userPreferencesRepository.quotesLikedCount.first()
-            userPreferencesRepository.saveQuotesLikedCount(currentCount + 1)
-            Log.d(TAG, "Quotes Liked Count incremented to ${currentCount + 1}")
-        }
-    }
-
-    private fun decrementQuotesLiked() {
-        viewModelScope.launch {
-            val currentCount = userPreferencesRepository.quotesLikedCount.first()
-            userPreferencesRepository.saveQuotesLikedCount(maxOf(0, currentCount - 1)) // Prevent negative count
-            Log.d(TAG, "Quotes Liked Count decremented to ${maxOf(0, currentCount - 1)}")
+            favoriteQuoteDao.deleteFavorite(quote)
+            userPreferencesRepository.updateFavoriteQuotesCount(favoriteQuoteDao.getAllFavorites().first().size)
         }
     }
 
     fun incrementSharedQuotes() {
         viewModelScope.launch {
-            val currentCount = userPreferencesRepository.quotesSharedCount.first()
-            userPreferencesRepository.saveQuotesSharedCount(currentCount + 1)
-            Log.d(TAG, "Quotes Shared Count incremented to ${currentCount + 1}")
+            userPreferencesRepository.incrementQuotesShared()
+            updateAchievementProgress(AchievementType.SHARE, 1)
         }
     }
 
     fun saveUserName(name: String) {
         viewModelScope.launch {
             userPreferencesRepository.saveUserName(name)
-            Log.d(TAG, "Saved userName: $name")
         }
     }
 
-    // Function to toggle theme, using the UserPreferencesRepository
-    fun toggleTheme() {
-        viewModelScope.launch {
-            val currentTheme = userPreferencesRepository.isDarkTheme.first()
-            userPreferencesRepository.saveThemePreference(!currentTheme)
+    fun setSearchQuery(query: String) {
+        _searchQuery.value = query
+    }
+
+    // Function to get achievement progress for display
+    fun getAchievementProgress(achievement: Achievement): Int {
+        // Now these are StateFlows, so .value is accessible
+        return when (achievement.title) {
+            "First Read", "Quote Enthusiast", "Quote Master" -> quotesReadCount.value
+            "First Favorite", "Collector" -> favoriteQuotesCount.value
+            "Sharer", "Social Butterfly" -> quotesSharedCount.value
+            else -> 0
         }
     }
 
-    private fun observeFavorites() {
-        viewModelScope.launch {
-            favoriteQuoteDao.getAllFavorites().collect { favorites ->
-                _allFavorites.value = favorites
-                Log.d(TAG, "Favorites updated: ${favorites.size} items")
+    private suspend fun updateAchievementProgress(type: AchievementType, progressIncrement: Int) {
+        val currentAchievements = achievementDao.getAllAchievements().first()
+        currentAchievements.forEach { achievement ->
+            when (type) {
+                AchievementType.READ -> {
+                    if (achievement.title == "First Read" || achievement.title == "Quote Enthusiast" || achievement.title == "Quote Master") {
+                        val newProgress = (achievement.currentValue + progressIncrement).coerceAtMost(achievement.threshold)
+                        if (newProgress >= achievement.threshold && !achievement.unlocked) {
+                            achievement.unlocked = true
+                            achievement.currentValue = newProgress
+                            achievementDao.updateAchievement(achievement)
+                        } else if (!achievement.unlocked) {
+                            achievement.currentValue = newProgress
+                            achievementDao.updateAchievement(achievement)
+                        }
+                    }
+                }
+                AchievementType.FAVORITE -> {
+                    if (achievement.title == "First Favorite" || achievement.title == "Collector") {
+                        val newProgress = (achievement.currentValue + progressIncrement).coerceAtMost(achievement.threshold)
+                        if (newProgress >= achievement.threshold && !achievement.unlocked) {
+                            achievement.unlocked = true
+                            achievement.currentValue = newProgress
+                            achievementDao.updateAchievement(achievement)
+                        } else if (!achievement.unlocked) {
+                            achievement.currentValue = newProgress
+                            achievementDao.updateAchievement(achievement)
+                        }
+                    }
+                }
+                AchievementType.SHARE -> {
+                    if (achievement.title == "Sharer" || achievement.title == "Social Butterfly") {
+                        val newProgress = (achievement.currentValue + progressIncrement).coerceAtMost(achievement.threshold)
+                        if (newProgress >= achievement.threshold && !achievement.unlocked) {
+                            achievement.unlocked = true
+                            achievement.currentValue = newProgress
+                            achievementDao.updateAchievement(achievement)
+                        } else if (!achievement.unlocked) {
+                            achievement.currentValue = newProgress
+                            achievementDao.updateAchievement(achievement)
+                        }
+                    }
+                }
             }
         }
     }
 }
 
-
-class QuoteViewModelFactory(
-    private val favoriteQuoteDao: FavoriteQuoteDao,
-    private val userPreferencesRepository: UserPreferencesRepository
-) : ViewModelProvider.Factory {
-    override fun <T : ViewModel> create(modelClass: Class<T>): T {
-        if (modelClass.isAssignableFrom(QuoteViewModel::class.java)) {
-            @Suppress("UNCHECKED_CAST")
-            val quoteRepository = QuoteRepository() // Instantiate QuoteRepository here
-            return QuoteViewModel(
-                quoteRepository = quoteRepository,
-                favoriteQuoteDao = favoriteQuoteDao,
-                userPreferencesRepository = userPreferencesRepository
-            ) as T
-        }
-        throw IllegalArgumentException("Unknown ViewModel class")
-    }
+enum class AchievementType {
+    READ, FAVORITE, SHARE
 }

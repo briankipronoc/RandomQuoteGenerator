@@ -33,7 +33,9 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.input.pointer.pointerInput
+import androidx.navigation.NavController // Import NavController
 import com.kiprono.randomquote.data.Quote
+import com.kiprono.randomquote.ui.viewmodel.QuoteViewModel // Import QuoteViewModel
 import kotlinx.coroutines.launch
 import java.util.Calendar
 
@@ -43,6 +45,8 @@ private const val TAG = "QuoteScreen"
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun QuoteScreen(
+    viewModel: QuoteViewModel, // FIX: Added ViewModel parameter
+    navController: NavController, // FIX: Added NavController parameter
     quote: Quote?,
     isLoading: Boolean,
     errorMessage: String?,
@@ -92,16 +96,14 @@ fun QuoteScreen(
                 )
             )
         }
-        // REMOVED: floatingActionButton and floatingActionButtonPosition from Scaffold
-        // The refresh button is now placed directly within the main Column
     ) { paddingValues ->
         Column(
             modifier = Modifier
-                .fillMaxSize() // Ensures the Column fills the whole screen
-                .padding(paddingValues) // Apply Scaffold's padding to respect system bars
+                .fillMaxSize()
+                .padding(paddingValues)
                 .padding(horizontal = 16.dp, vertical = 24.dp),
             horizontalAlignment = Alignment.CenterHorizontally,
-            verticalArrangement = Arrangement.SpaceBetween // Distributes space evenly
+            verticalArrangement = Arrangement.SpaceBetween
         ) {
             Column(
                 horizontalAlignment = Alignment.CenterHorizontally,
@@ -125,7 +127,7 @@ fun QuoteScreen(
                 }
             }
 
-            Spacer(Modifier.weight(1f)) // Pushes content above it towards the top, and content below towards the bottom
+            Spacer(Modifier.weight(1f))
 
             Card(
                 modifier = Modifier
@@ -135,11 +137,11 @@ fun QuoteScreen(
                     .clickable(
                         interactionSource = interactionSource,
                         indication = rememberRipple(),
-                        onClick = { // onClick here is important for the ripple effect
+                        onClick = {
                             Log.d(TAG, "Single-tapped the quote card (for ripple).")
                         }
                     )
-                    .pointerInput(Unit) { // Actual tap gesture handling
+                    .pointerInput(Unit) {
                         detectTapGestures(
                             onTap = {
                                 Log.d(TAG, "Single-tapped the quote card.")
@@ -184,7 +186,7 @@ fun QuoteScreen(
                         )
                     } else if (quote != null) {
                         Text(
-                            text = "\"${quote.content ?: "Quote content unavailable"}\"",
+                            text = "\"${quote.text ?: "Quote content unavailable"}\"", // FIX: Changed quote.content to quote.text
                             style = AppTypography.headlineSmall.copy(
                                 fontWeight = FontWeight.Bold,
                                 lineHeight = 36.sp
@@ -211,15 +213,13 @@ fun QuoteScreen(
                 }
             }
 
-            // NEW: Row for Favorite and Share buttons, directly below the card
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(top = 24.dp), // Space from the card
-                horizontalArrangement = Arrangement.Center, // Center the icons
+                    .padding(top = 24.dp),
+                horizontalArrangement = Arrangement.Center,
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                // Favorite Button
                 IconButton(onClick = {
                     onFavoriteQuote()
                     Log.d(TAG, "Favorite button clicked.")
@@ -232,13 +232,12 @@ fun QuoteScreen(
                     )
                 }
 
-                Spacer(Modifier.width(32.dp)) // Space between heart and share
+                Spacer(Modifier.width(32.dp))
 
-                // Share Button
                 IconButton(
                     onClick = {
                         quote?.let { currentQuote ->
-                            val shareText = "\"${currentQuote.content}\" - ${currentQuote.author}"
+                            val shareText = "\"${currentQuote.text}\" - ${currentQuote.author}" // FIX: Changed currentQuote.content to currentQuote.text
                             val shareIntent = Intent(Intent.ACTION_SEND).apply {
                                 type = "text/plain"
                                 putExtra(Intent.EXTRA_TEXT, shareText)
@@ -259,16 +258,15 @@ fun QuoteScreen(
                 }
             }
 
-            Spacer(Modifier.weight(1f)) // Pushes elements above it towards the middle/top, and the FAB to the bottom
+            Spacer(Modifier.weight(1f))
 
-            // REFRESH BUTTON - Now centered at the very bottom
             FloatingActionButton(
                 onClick = onRefreshQuote,
                 containerColor = MaterialTheme.colorScheme.primary,
                 contentColor = MaterialTheme.colorScheme.onPrimary,
                 modifier = Modifier
                     .size(68.dp)
-                    .align(Alignment.CenterHorizontally) // Center horizontally in the Column
+                    .align(Alignment.CenterHorizontally)
             ) {
                 Icon(
                     imageVector = Icons.Filled.Refresh,
@@ -276,7 +274,7 @@ fun QuoteScreen(
                     modifier = Modifier.size(36.dp)
                 )
             }
-            Spacer(Modifier.height(16.dp)) // Add some padding at the very bottom
+            Spacer(Modifier.height(16.dp))
         }
     }
 }

@@ -1,25 +1,24 @@
-// app/src/main/java/com/kiprono/randomquote/data/FavoriteQuoteDao.kt
-
 package com.kiprono.randomquote.data
 
 import androidx.room.Dao
-import androidx.room.Delete
 import androidx.room.Insert
+import androidx.room.Delete // Import Delete
 import androidx.room.OnConflictStrategy
 import androidx.room.Query
 import kotlinx.coroutines.flow.Flow
 
 @Dao
 interface FavoriteQuoteDao {
+
+    @Query("SELECT * FROM favorite_quotes ORDER BY id DESC")
+    fun getAllFavorites(): Flow<List<Quote>>
+
     @Insert(onConflict = OnConflictStrategy.REPLACE)
-    suspend fun insert(quote: Quote) // **Ensure it takes a Quote object**
+    suspend fun addFavorite(quote: Quote)
 
-    @Delete
-    suspend fun delete(quote: Quote) // **Ensure it takes a Quote object**
+    @Delete // Use @Delete for removing an entity
+    suspend fun deleteFavorite(quote: Quote) // Renamed from removeFavorite for clarity and convention
 
-    @Query("SELECT * FROM favorite_quotes ORDER BY author ASC")
-    fun getAllFavorites(): Flow<List<Quote>> // **Ensure it returns a List of Quote objects**
-
-    @Query("SELECT * FROM favorite_quotes WHERE content = :content AND author = :author LIMIT 1")
-    suspend fun getFavoriteByContentAndAuthor(content: String?, author: String?): Quote? // **Ensure it returns a nullable Quote**
+    @Query("SELECT EXISTS(SELECT 1 FROM favorite_quotes WHERE text = :quoteText AND author = :quoteAuthor LIMIT 1)")
+    suspend fun isQuoteFavorited(quoteText: String, quoteAuthor: String): Boolean
 }

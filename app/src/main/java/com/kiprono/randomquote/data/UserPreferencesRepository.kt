@@ -3,110 +3,91 @@ package com.kiprono.randomquote.data
 import android.content.Context
 import androidx.datastore.core.DataStore
 import androidx.datastore.preferences.core.Preferences
-import androidx.datastore.preferences.core.booleanPreferencesKey // ADDED: Import for boolean key
+import androidx.datastore.preferences.core.booleanPreferencesKey
 import androidx.datastore.preferences.core.edit
 import androidx.datastore.preferences.core.intPreferencesKey
 import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.datastore.preferences.preferencesDataStore
+import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
+import javax.inject.Inject
+import javax.inject.Singleton
 
-// DataStore keys
-private val USER_NAME_KEY = stringPreferencesKey("user_name")
-private val QUOTES_READ_COUNT_KEY = intPreferencesKey("quotes_read_count")
-private val QUOTES_LIKED_COUNT_KEY = intPreferencesKey("quotes_liked_count")
-private val QUOTES_SHARED_COUNT_KEY = intPreferencesKey("quotes_shared_count")
-private val DARK_THEME_KEY = booleanPreferencesKey("dark_theme_key") // ADDED: Key for dark theme
-
-// Provide a DataStore instance at the application level
+// Create a DataStore instance. This should be a top-level property
+// or declared in a DI module. For simplicity here, we'll declare it here.
 val Context.dataStore: DataStore<Preferences> by preferencesDataStore(name = "user_preferences")
 
-class UserPreferencesRepository(
-    private val context: Context
-) {
-    private val dataStore = context.dataStore
+@Singleton
+class UserPreferencesRepository @Inject constructor(@ApplicationContext private val context: Context) {
 
-    // Expose userName as a Flow
-    val userName: Flow<String?> = dataStore.data.map { preferences ->
-        preferences[USER_NAME_KEY]
+    private object PreferencesKeys {
+        val IS_DARK_THEME = booleanPreferencesKey("is_dark_theme")
+        val USER_NAME = stringPreferencesKey("user_name")
+        val QUOTES_READ_COUNT = intPreferencesKey("quotes_read_count")
+        val FAVORITE_QUOTES_COUNT = intPreferencesKey("favorite_quotes_count")
+        val QUOTES_SHARED_COUNT = intPreferencesKey("quotes_shared_count")
     }
 
-    // Expose quotesReadCount as a Flow
-    val quotesReadCount: Flow<Int> = dataStore.data.map { preferences ->
-        preferences[QUOTES_READ_COUNT_KEY] ?: 0
+    // Theme preference
+    val isDarkTheme: Flow<Boolean> = context.dataStore.data
+        .map { preferences ->
+            preferences[PreferencesKeys.IS_DARK_THEME] ?: false // Default to false (light theme)
+        }
+
+    suspend fun saveThemePreference(isDark: Boolean) {
+        context.dataStore.edit { preferences ->
+            preferences[PreferencesKeys.IS_DARK_THEME] = isDark
+        }
     }
 
-    // Expose quotesLikedCount as a Flow
-    val quotesLikedCount: Flow<Int> = dataStore.data.map { preferences ->
-        preferences[QUOTES_LIKED_COUNT_KEY] ?: 0
-    }
+    // User Name
+    val userName: Flow<String> = context.dataStore.data
+        .map { preferences ->
+            preferences[PreferencesKeys.USER_NAME] ?: "Guest" // Default name
+        }
 
-    // Expose quotesSharedCount as a Flow
-    val quotesSharedCount: Flow<Int> = dataStore.data.map { preferences ->
-        preferences[QUOTES_SHARED_COUNT_KEY] ?: 0
-    }
-
-    // ADDED: Expose isDarkTheme as a Flow
-    val isDarkTheme: Flow<Boolean> = dataStore.data.map { preferences ->
-        preferences[DARK_THEME_KEY] ?: false // Default to false (light theme) if not set
-    }
-
-    // Function to save the user name
     suspend fun saveUserName(name: String) {
-        dataStore.edit { preferences ->
-            preferences[USER_NAME_KEY] = name
+        context.dataStore.edit { preferences ->
+            preferences[PreferencesKeys.USER_NAME] = name
         }
     }
 
-    // Function to save quotes read count
-    suspend fun saveQuotesReadCount(count: Int) {
-        dataStore.edit { preferences ->
-            preferences[QUOTES_READ_COUNT_KEY] = count
+    // Quotes Read Count
+    val quotesReadCount: Flow<Int> = context.dataStore.data
+        .map { preferences ->
+            preferences[PreferencesKeys.QUOTES_READ_COUNT] ?: 0 // Default to 0
+        }
+
+    suspend fun incrementQuotesRead() {
+        context.dataStore.edit { preferences ->
+            val currentCount = preferences[PreferencesKeys.QUOTES_READ_COUNT] ?: 0
+            preferences[PreferencesKeys.QUOTES_READ_COUNT] = currentCount + 1
         }
     }
 
-    // Function to save quotes liked count
-    suspend fun saveQuotesLikedCount(count: Int) {
-        dataStore.edit { preferences ->
-            preferences[QUOTES_LIKED_COUNT_KEY] = count
+    // Favorite Quotes Count
+    val favoriteQuotesCount: Flow<Int> = context.dataStore.data
+        .map { preferences ->
+            preferences[PreferencesKeys.FAVORITE_QUOTES_COUNT] ?: 0 // Default to 0
+        }
+
+    suspend fun updateFavoriteQuotesCount(count: Int) {
+        context.dataStore.edit { preferences ->
+            preferences[PreferencesKeys.FAVORITE_QUOTES_COUNT] = count
         }
     }
 
-    // Function to save quotes shared count
-    suspend fun saveQuotesSharedCount(count: Int) {
-        dataStore.edit { preferences ->
-            preferences[QUOTES_SHARED_COUNT_KEY] = count
+    // Quotes Shared Count
+    val quotesSharedCount: Flow<Int> = context.dataStore.data
+        .map { preferences ->
+            preferences[PreferencesKeys.QUOTES_SHARED_COUNT] ?: 0 // Default to 0
         }
-    }
 
-    // ADDED: Function to save the dark theme preference
-    suspend fun saveThemePreference(isDark: Boolean) { // <--- ADDED THIS FUNCTION
-        dataStore.edit { preferences ->
-            preferences[DARK_THEME_KEY] = isDark
-        }
-    }
-
-    // The UserStats data class and readStats/saveStats functions
-    // (kept as they were in your provided code, assuming they are still used elsewhere)
-    data class UserStats(
-        val readCount: Int,
-        val sharedCount: Int,
-        val likedCount: Int
-    )
-
-    val readStats: Flow<UserStats> = dataStore.data.map { preferences ->
-        UserStats(
-            readCount = preferences[QUOTES_READ_COUNT_KEY] ?: 0,
-            sharedCount = preferences[QUOTES_SHARED_COUNT_KEY] ?: 0,
-            likedCount = preferences[QUOTES_LIKED_COUNT_KEY] ?: 0
-        )
-    }
-
-    suspend fun saveStats(readCount: Int, sharedCount: Int, likedCount: Int) {
-        dataStore.edit { preferences ->
-            preferences[QUOTES_READ_COUNT_KEY] = readCount
-            preferences[QUOTES_SHARED_COUNT_KEY] = sharedCount
-            preferences[QUOTES_LIKED_COUNT_KEY] = likedCount
+    suspend fun incrementQuotesShared() {
+        context.dataStore.edit { preferences ->
+            val currentCount = preferences[PreferencesKeys.QUOTES_SHARED_COUNT] ?: 0
+            preferences[PreferencesKeys.QUOTES_SHARED_COUNT] = currentCount + 1
         }
     }
 }

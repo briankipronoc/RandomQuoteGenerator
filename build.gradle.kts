@@ -1,11 +1,14 @@
-// build.gradle.kts (Project level)
+// build.gradle.kts (Project-level, in your project's root directory)
 
-plugins {
-    id("com.android.application") version "8.2.2" apply false
-    // Use Kotlin version 1.9.22 consistently
-    id("org.jetbrains.kotlin.android") version "1.9.22" apply false
-    // Use Kotlinx Serialization plugin version compatible with Kotlin 1.9.22
-    id("org.jetbrains.kotlin.plugin.serialization") version "1.9.22" apply false
-    // Use KSP version compatible with Kotlin 1.9.22
-    id("com.google.devtools.ksp") version "1.9.22-1.0.17" apply false
+// Repositories for dependencies used by *all* modules in your project.
+allprojects {
+    repositories {
+        google() // For AndroidX libraries, Google Play Services, etc.
+        mavenCentral() // For general Maven Central libraries
+    }
+}
+
+// Configuration for tasks that run after project evaluation (e.g., cleaning build directories)
+tasks.register("clean", Delete::class) {
+    delete(rootProject.buildDir)
 }

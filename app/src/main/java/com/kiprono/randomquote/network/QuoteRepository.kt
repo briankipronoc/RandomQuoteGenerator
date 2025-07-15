@@ -1,45 +1,27 @@
 package com.kiprono.randomquote.network
 
 import com.kiprono.randomquote.data.Quote
-import com.kiprono.randomquote.data.RetrofitClient // Ensure this import is correct
+import javax.inject.Inject
+import javax.inject.Singleton
 
-class QuoteRepository {
-    private val api = RetrofitClient.quoteApiService
-
-    // In-memory favorites list (You'll eventually want to persist this)
-    private val favorites = mutableListOf<Quote>()
-
-    suspend fun fetchRandomQuote(): Quote? {
-        val response = api.getRandomQuote()
-        if (response.isSuccessful) {
-            val zenQuoteList = response.body() // This will be List<ZenQuoteApiResponse>
-            return if (!zenQuoteList.isNullOrEmpty()) {
-                val zenQuote = zenQuoteList.first() // Get the first item from the list
-                // Convert ZenQuoteApiResponse to your existing Quote data class
-                Quote(
-                    id = 0, // <--- ADD THIS LINE to provide a default ID for a new quote
-                    content = zenQuote.q, // Map 'q' from API response to 'content'
-                    author = zenQuote.a // Map 'a' from API response to 'author'
-                )
-            } else {
-                null // Empty list returned
-            }
-        } else {
-            // Handle API error, maybe log it or throw an exception
-            // For now, just return null, and ViewModel will pick up the error message.
-            println("API Error: ${response.code()} - ${response.message()}")
-            return null
+@Singleton
+class QuoteRepository @Inject constructor(
+    private val apiService: QuoteApiService
+) {
+    suspend fun fetchRandomQuote(): Quote {
+        return try {
+            val quotes = apiService.getRandomQuote()
+            // Zen Quotes API returns a list, take the first one
+            quotes.firstOrNull() ?: throw Exception("No quote received from API")
+        } catch (e: Exception) {
+            // Log the error for debugging
+            e.printStackTrace()
+            // Provide a fallback Quote object
+            Quote(
+                id = 0, // Default ID for Room
+                text = "Failed to load quote. Please check your internet connection.",
+                author = "System"
+            )
         }
     }
-
-    // These favorite methods in the repository might be redundant if favoriteQuoteDao
-    // in the ViewModel is the primary source of truth for favorites.
-    // Consider removing them if they are not used elsewhere or cause confusion.
-    fun addFavorite(quote: Quote) {
-        if (!favorites.contains(quote)) {
-            favorites.add(quote)
-        }
-    }
-
-    fun getFavorites(): List<Quote> = favorites
 }
